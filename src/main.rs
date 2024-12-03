@@ -50,20 +50,20 @@ fn copy_fn(path: &String) {
 
 fn paste_fn(path: &String) {
     let tempfile = temp_dir().join("clippin.txt");
-    let mut p = Path::new(path);
+    let mut dst_path = Path::new(path);
 
     let mut reader = BufReader::new(File::open(tempfile).unwrap());
     let mut content = String::new();
     reader.read_to_string(&mut content).unwrap();
 
-    let dst_path = Path::new(&content);
-    if dst_path.exists() {
-        let joined_path = p.join(dst_path.file_name().unwrap());
-        if p.is_dir() {
-            p = &joined_path;
+    let src_path = Path::new(&content);
+    if src_path.exists() {
+        let joined_path = dst_path.join(src_path.file_name().unwrap());
+        if dst_path.is_dir() {
+            dst_path = &joined_path;
         }
 
-        fs::copy(dst_path, p).unwrap();
+        fs::copy(src_path, dst_path).unwrap();
     } else {
         println!("The source file does not exist");
     }
