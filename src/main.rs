@@ -16,10 +16,16 @@ struct Args {
 
 #[derive(Subcommand, Debug, Clone)]
 enum Commands {
+    /// Specify files to copy
     #[command(alias = "c")]
-    Copy { path: String },
+    Copy {
+        /// File path to be copied
+        path: String,
+    },
+    /// Paste a file specified by the Copy command
     #[command(alias = "p")]
     Paste {
+        /// Directory path or file path to paste the file
         #[clap(default_value_t = String::from("./"))]
         path: String,
     },
