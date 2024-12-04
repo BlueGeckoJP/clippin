@@ -26,13 +26,13 @@ enum Commands {
     /// Specify files to copy
     #[command(alias = "c")]
     Copy {
-        /// File path to be copied
-        path: String,
+        /// File paths to be copied
+        path: Vec<String>,
     },
-    /// Paste a file specified by the Copy command
+    /// Paste files specified by the Copy command
     #[command(alias = "p")]
     Paste {
-        /// Directory path to paste the file
+        /// Directory path to paste the files
         #[clap(default_value_t = String::from("./"))]
         path: String,
     },
@@ -49,19 +49,29 @@ fn main() {
     }
 }
 
-fn copy_fn(path: &String) {
+fn copy_fn(paths: &[String]) {
     let tempfile = temp_dir().join("clippin.txt");
-    let p = path::absolute(path).unwrap();
+    let absolute_paths = paths
+        .iter()
+        .filter_map(|p| {
+            let absolute_path = path::absolute(p).unwrap();
+            if absolute_path.exists() {
+                Some(absolute_path.to_string_lossy().to_string())
+            } else {
+                error!("{} was ignored because it does not exist", p);
+                None
+            }
+        })
+        .collect::<Vec<String>>();
 
-    if p.exists() {
-        let mut writer = BufWriter::new(File::create(tempfile).unwrap());
-        writer
-            .write_all(p.display().to_string().as_bytes())
-            .unwrap();
-        info!("Set {} to the source file", path);
-    } else {
-        error!("The specified file does not exist");
-    }
+    let paths_string = absolute_paths.join("\n");
+
+    let mut writer = BufWriter::new(File::create(&tempfile).unwrap());
+    writer.write_all(paths_string.as_bytes()).unwrap();
+    info!(
+        "The following files have been set as the source files \n{}",
+        paths.join("\n")
+    );
 }
 
 fn paste_fn(path: &String) {
@@ -72,18 +82,36 @@ fn paste_fn(path: &String) {
     let mut content = String::new();
     reader.read_to_string(&mut content).unwrap();
 
-    let src_path = Path::new(&content);
-    if src_path.exists() {
-        if src_path == path::absolute(dst_path).unwrap() {
-            error!("The source and destination paths are the same");
-            return;
-        }
+    let src_paths = content
+        .split("\n")
+        .filter_map(|p_str| {
+            let p = Path::new(p_str);
+            if p == path::absolute(dst_path).unwrap() {
+                error!(
+                    "Ignore {} because the source and destination paths are the same",
+                    p_str
+                );
+                return None;
+            }
 
-        if dst_path.join(src_path.file_name().unwrap()).exists() {
-            error!("The file to be copied already exists");
-            return;
-        }
+            if dst_path.join(p.file_name().unwrap()).exists() {
+                error!(
+                    "Ignore {} because the destination file already exists",
+                    p_str
+                );
+                return None;
+            }
 
+            if !p.exists() {
+                error!("Ignore {} because it does not exist", p_str);
+                return None;
+            }
+
+            Some(p)
+        })
+        .collect::<Vec<&Path>>();
+
+    for src_path in &src_paths {
         let file_len = metadata(src_path).unwrap().len();
 
         let mut last_progress = 0;
@@ -106,7 +134,8 @@ fn paste_fn(path: &String) {
             TransitProcessResult::ContinueOrAbort
         };
         copy_items_with_progress(&[src_path], dst_path, &options, handler).unwrap();
-    } else {
-        error!("The source file does not exist");
+        progressbar.finish();
     }
+
+    info!("{} files have been copied", src_paths.len());
 }
