@@ -1,6 +1,6 @@
 use std::{
     env::temp_dir,
-    fs::File,
+    fs::{File, metadata},
     io::{BufReader, BufWriter, Read, Write},
     path::{self, Path},
 };
@@ -10,6 +10,7 @@ use fs_extra::{
     TransitProcess, copy_items_with_progress,
     dir::{CopyOptions, TransitProcessResult},
 };
+use indicatif::{ProgressBar, ProgressStyle};
 
 #[derive(Parser)]
 #[command(author, version, about)]
@@ -73,14 +74,30 @@ fn paste_fn(path: &String) {
             return;
         }
 
-        if dst_path.exists() {
+        if dst_path.join(src_path.file_name().unwrap()).exists() {
             println!("The file to be copied already exists");
             return;
         }
 
+        let file_len = metadata(src_path).unwrap().len();
+
+        let mut last_progress = 0;
+        let progressbar = ProgressBar::new(file_len)
+            .with_message(format!(
+                "Copying {}",
+                src_path.file_name().unwrap().to_string_lossy(),
+            ))
+            .with_style(
+                ProgressStyle::with_template(
+                    "[{percent:.cyan}%] [{elapsed_precise:.cyan}] {msg}\n{wide_bar:.cyan/blue}",
+                )
+                .unwrap(),
+            );
         let options = CopyOptions::new();
         let handler = |process_info: TransitProcess| {
-            println!("{}", process_info.copied_bytes);
+            let increased = process_info.copied_bytes - last_progress;
+            progressbar.inc(increased);
+            last_progress += increased;
             TransitProcessResult::ContinueOrAbort
         };
         copy_items_with_progress(&[src_path], dst_path, &options, handler).unwrap();
