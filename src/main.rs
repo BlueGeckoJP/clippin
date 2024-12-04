@@ -6,11 +6,13 @@ use std::{
 };
 
 use clap::{Parser, Subcommand, command};
+use env_logger::Env;
 use fs_extra::{
     TransitProcess, copy_items_with_progress,
     dir::{CopyOptions, TransitProcessResult},
 };
 use indicatif::{ProgressBar, ProgressStyle};
+use log::{error, info};
 
 #[derive(Parser)]
 #[command(author, version, about)]
@@ -37,6 +39,8 @@ enum Commands {
 }
 
 fn main() {
+    env_logger::init_from_env(Env::new().default_filter_or("info"));
+
     let args = Args::parse();
 
     match &args.command {
@@ -54,8 +58,9 @@ fn copy_fn(path: &String) {
         writer
             .write_all(p.display().to_string().as_bytes())
             .unwrap();
+        info!("Set {} to the source file", path);
     } else {
-        println!("The specified file does not exist");
+        error!("The specified file does not exist");
     }
 }
 
@@ -70,12 +75,12 @@ fn paste_fn(path: &String) {
     let src_path = Path::new(&content);
     if src_path.exists() {
         if src_path == path::absolute(dst_path).unwrap() {
-            println!("The source and destination paths are the same");
+            error!("The source and destination paths are the same");
             return;
         }
 
         if dst_path.join(src_path.file_name().unwrap()).exists() {
-            println!("The file to be copied already exists");
+            error!("The file to be copied already exists");
             return;
         }
 
@@ -102,6 +107,6 @@ fn paste_fn(path: &String) {
         };
         copy_items_with_progress(&[src_path], dst_path, &options, handler).unwrap();
     } else {
-        println!("The source file does not exist");
+        error!("The source file does not exist");
     }
 }
