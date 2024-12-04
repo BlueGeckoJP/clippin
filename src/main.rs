@@ -69,6 +69,11 @@ fn paste_fn(path: &String) {
             dst_path = &joined_path;
         }
 
+        if src_path == dst_path {
+            println!("The source and destination paths are the same");
+            return;
+        }
+
         fs::copy(src_path, dst_path).unwrap();
     } else {
         println!("The source file does not exist");
