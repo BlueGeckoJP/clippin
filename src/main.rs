@@ -1,11 +1,15 @@
 use std::{
     env::temp_dir,
-    fs::{self, File},
+    fs::File,
     io::{BufReader, BufWriter, Read, Write},
     path::{self, Path},
 };
 
 use clap::{Parser, Subcommand, command};
+use fs_extra::{
+    TransitProcess, copy_items_with_progress,
+    dir::{CopyOptions, TransitProcessResult},
+};
 
 #[derive(Parser)]
 #[command(author, version, about)]
@@ -25,7 +29,7 @@ enum Commands {
     /// Paste a file specified by the Copy command
     #[command(alias = "p")]
     Paste {
-        /// Directory path or file path to paste the file
+        /// Directory path to paste the file
         #[clap(default_value_t = String::from("./"))]
         path: String,
     },
@@ -56,7 +60,7 @@ fn copy_fn(path: &String) {
 
 fn paste_fn(path: &String) {
     let tempfile = temp_dir().join("clippin.txt");
-    let mut dst_path = Path::new(path);
+    let dst_path = Path::new(path);
 
     let mut reader = BufReader::new(File::open(tempfile).unwrap());
     let mut content = String::new();
@@ -64,17 +68,22 @@ fn paste_fn(path: &String) {
 
     let src_path = Path::new(&content);
     if src_path.exists() {
-        let joined_path = dst_path.join(src_path.file_name().unwrap());
-        if dst_path.is_dir() {
-            dst_path = &joined_path;
-        }
-
-        if src_path == dst_path {
+        if src_path == path::absolute(dst_path).unwrap() {
             println!("The source and destination paths are the same");
             return;
         }
 
-        fs::copy(src_path, dst_path).unwrap();
+        if dst_path.exists() {
+            println!("The file to be copied already exists");
+            return;
+        }
+
+        let options = CopyOptions::new();
+        let handler = |process_info: TransitProcess| {
+            println!("{}", process_info.copied_bytes);
+            TransitProcessResult::ContinueOrAbort
+        };
+        copy_items_with_progress(&[src_path], dst_path, &options, handler).unwrap();
     } else {
         println!("The source file does not exist");
     }
